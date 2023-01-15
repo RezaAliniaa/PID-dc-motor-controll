@@ -1,0 +1,114 @@
+#include <PID_v1.h>
+
+//thats it 
+
+
+#define ENCODER_A 12
+#define ENCODER_B 13
+
+
+
+#define MOTOR_CW  14
+#define MOTOR_CCW 27
+
+
+
+
+double SetPoint, InPut, OutPut;
+//double Kp=260, Ki=2.7, Kd=2000;
+
+
+volatile long int encoder_count = 0; 
+unsigned int integerValue = 0;
+char incomingByte; 
+int motor_pwm_value = 255; 
+int op=0;
+
+PID pidcontroller(&InPut,&OutPut,&SetPoint,2,5,1,DIRECT);
+
+void setup() {
+
+  Serial.begin(115200); // Serial for Debugging
+  pinMode(ENCODER_A, INPUT_PULLUP); // ENCODER_A as Input
+  pinMode(ENCODER_B, INPUT_PULLUP); // ENCODER_B as Input
+  pinMode(MOTOR_CW, OUTPUT); // MOTOR_CW as Output
+  pinMode(MOTOR_CCW, OUTPUT); // MOTOR_CW as Output
+
+
+  attachInterrupt(digitalPinToInterrupt(ENCODER_A), encoder, RISING);
+  
+//  pidcontroller.begin(); // initialize the PID instance
+//  pidcontroller.tune(2600, 27, 4000); 
+  pidcontroller.SetOutputLimits(-600,600); 
+  pidcontroller.SetMode(AUTOMATIC);
+}
+void loop() {
+  while (Serial.available() > 0) {
+    integerValue = Serial.parseInt(); 
+    incomingByte = Serial.read(); // stores the /n character
+    if (incomingByte == '\n') // if we receive a newline character we will continue in the loop
+      continue;
+  }
+  
+  SetPoint=integerValue;
+  Serial.print(F("SetPoint=")); 
+  Serial.println(integerValue); 
+  
+//  motor_pwm_value = pidcontroller.compute(encoder_count);
+  
+  InPut=encoder_count/6;
+  op=OutPut;
+  motor_pwm_value = op;
+  
+  Serial.print(F("PWM Output= "));
+  Serial.print(motor_pwm_value); // print the calculated value for debugging
+  Serial.print("      ");
+  
+  if (motor_pwm_value > 0) // if the motor_pwm_value is greater than zero we rotate the  motor in clockwise direction
+    motor_ccw(motor_pwm_value);
+  else // else we move it in a counter clockwise direction
+    motor_cw(abs(motor_pwm_value));
+    
+    
+  Serial.print(F("Encoder Pulse count= "));
+  Serial.println(encoder_count/6);
+  pidcontroller.Compute();
+  
+  Serial.print(F("PID output= "));
+  Serial.println(OutPut);
+  Serial.println('\n');
+  
+  
+}
+
+
+
+void encoder() {
+  if (digitalRead(ENCODER_B) == HIGH) // if ENCODER_B is high increase the count
+    encoder_count++; // increment the count
+  else // else decrease the count
+    encoder_count--;  // decrement the count
+}
+
+void motor_cw(int power) {
+  
+  if (power > 100) {
+    analogWrite(MOTOR_CW, power); //rotate the motor if the value is grater than 100
+    digitalWrite(MOTOR_CCW, LOW); // make the other pin LOW
+  }
+  else {
+    // both of the pins are set to low    
+    digitalWrite(MOTOR_CW, LOW);
+    digitalWrite(MOTOR_CCW, LOW);
+  }
+}
+void motor_ccw(int power) {
+  if (power > 100) {
+    analogWrite(MOTOR_CCW, power);
+    digitalWrite(MOTOR_CW, LOW);
+  }
+  else {
+    digitalWrite(MOTOR_CW, LOW);
+    digitalWrite(MOTOR_CCW, LOW);
+  }
+}
