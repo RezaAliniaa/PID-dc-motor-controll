@@ -1,0 +1,118 @@
+//letsgo to win
+
+#include <PID_v1.h>
+
+const int freq = 20000;
+const int pwmChannel = 0;
+const int resolution = 8;
+
+#define ENCODER_A 34
+#define ENCODER_B 35
+
+#define MOTOR_pin1  26
+#define MOTOR_pin2 27
+#define MOTOR_pwm 12
+
+double SetPoint, InPut, OutPut;
+double Kp=4.8, Ki=10, Kd=0.01;
+
+volatile long int encoder_count = 0; 
+unsigned int integerValue = 0;
+char incomingByte; 
+int motor_pwm_value = 0; 
+int op=0;
+
+PID pidcontroller(&InPut,&OutPut,&SetPoint,Kp,Ki,Kd,DIRECT);
+
+
+void setup() {
+  
+  Serial.begin(115200); 
+  pinMode(ENCODER_A, INPUT_PULLUP); 
+  pinMode(ENCODER_B, INPUT_PULLUP); 
+  pinMode(MOTOR_pin1, OUTPUT); 
+  pinMode(MOTOR_pin2, OUTPUT);
+  pinMode (MOTOR_pwm,OUTPUT); 
+
+  digitalWrite(MOTOR_pwm,LOW);
+
+  ledcSetup(pwmChannel, freq, resolution); 
+  ledcAttachPin(MOTOR_pwm, 0); //(enable1Pin, pwmChannel)
+  attachInterrupt(digitalPinToInterrupt(ENCODER_A), encoder, RISING); // intrrupt for counting encoder pulse
+
+  pidcontroller.SetMode(AUTOMATIC);
+  pidcontroller.SetSampleTime(1);
+  pidcontroller.SetOutputLimits(-255, 255);
+}
+
+void loop() {
+  while (Serial.available() > 0) {
+    integerValue = Serial.parseInt(); 
+    incomingByte = Serial.read(); 
+    if (incomingByte == '\n') 
+      continue;
+  }
+  SetPoint=integerValue;
+  Serial.print(F("SetPoint=")); 
+  Serial.println(integerValue); 
+  //  motor_pwm_value = pidcontroller.compute(encoder_count);
+  
+  InPut=encoder_count/6;
+  op=OutPut;
+  motor_pwm_value = op;
+
+  Serial.print(F("PWM Output= "));
+  Serial.print(motor_pwm_value); 
+  Serial.print("      ");
+  
+
+  if (motor_pwm_value > 0) 
+    motor_ccw(motor_pwm_value);
+  else 
+    motor_cw(abs(motor_pwm_value));
+    
+    
+  Serial.print(F("Encoder Pulse count= "));
+  Serial.println(encoder_count/6);
+  pidcontroller.Compute();
+  
+//  Serial.print(F("PID output= "));
+//  Serial.println(OutPut);
+  Serial.println('\n');
+}
+
+void encoder() { //-----------------------Encoder Count
+  if (digitalRead(ENCODER_B) == HIGH) 
+    encoder_count++; 
+  else 
+    encoder_count--;  
+}
+
+
+void motor_cw(int power) {
+  
+  if (power > 1) {
+    ledcWrite(pwmChannel, power);   
+    // analogWrite(MOTOR_CW, power); //rotate the motor if the value is grater than 100
+    digitalWrite(MOTOR_pin1, HIGH);
+    digitalWrite(MOTOR_pin2, LOW);
+     
+  }
+  else {
+    // both of the pins are set to low    
+    digitalWrite(MOTOR_pin1, LOW);
+    digitalWrite(MOTOR_pin2, LOW);
+  }
+}
+
+void motor_ccw(int power) {
+  if (power > 1) {
+    ledcWrite(pwmChannel, power);
+    digitalWrite(MOTOR_pin1, LOW);
+    digitalWrite(MOTOR_pin2, HIGH);
+  }
+  else {
+    digitalWrite(MOTOR_pin1, LOW);
+    digitalWrite(MOTOR_pin2, LOW);
+  }
+}
